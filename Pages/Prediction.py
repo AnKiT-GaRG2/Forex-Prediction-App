@@ -902,6 +902,150 @@ class Model:
             st.metric("GRU → Next", f"{gru_pred:.5f}", f"{gru_delta_pct:+.2f}%")
         with c4:
             st.metric("Average (LSTM+GRU)", f"{avg_pred:.5f}", f"{avg_delta_pct:+.2f}%")
+            
+        # --- Stop Loss Section ---
+        st.subheader("🛑 Stop Loss Calculation")
+        
+        # Calculate ATR for dynamic stop loss if available
+        atr_value = None
+        if 'atr' in lstm_df.columns:
+            atr_value = lstm_df['atr'].iloc[-1]
+        
+        # Default to 1% if ATR not available
+        atr_multiplier = st.slider("ATR Multiplier", 1.0, 5.0, 2.0, 0.1)
+        risk_percent = st.slider("Risk Percentage", 0.5, 5.0, 1.0, 0.1)
+        
+        # Calculate stop loss levels
+        if avg_delta_pct > 0:  # Bullish prediction
+            trade_type = "BUY"
+            entry_price = last_price
+            
+            # ATR-based stop loss
+            if atr_value:
+                atr_stop = entry_price - (atr_value * atr_multiplier)
+                atr_stop_pct = (atr_stop - entry_price) / entry_price * 100.0
+            else:
+                atr_stop = entry_price * (1 - 0.01 * atr_multiplier)
+                atr_stop_pct = -1.0 * atr_multiplier
+            
+            # Percentage-based stop loss
+            pct_stop = entry_price * (1 - risk_percent/100)
+            pct_stop_pct = -risk_percent
+            
+            # Support-based stop loss (using recent lows)
+            recent_low = lstm_df['close'].tail(20).min()
+            support_stop = recent_low
+            support_stop_pct = (support_stop - entry_price) / entry_price * 100.0
+            
+            # Take profit suggestion based on risk:reward of 1:2
+            take_profit = entry_price * (1 + (risk_percent * 2)/100)
+            take_profit_pct = risk_percent * 2
+            
+        else:  # Bearish prediction
+            trade_type = "SELL"
+            entry_price = last_price
+            
+            # ATR-based stop loss
+            if atr_value:
+                atr_stop = entry_price + (atr_value * atr_multiplier)
+                atr_stop_pct = (atr_stop - entry_price) / entry_price * 100.0
+            else:
+                atr_stop = entry_price * (1 + 0.01 * atr_multiplier)
+                atr_stop_pct = 1.0 * atr_multiplier
+            
+            # Percentage-based stop loss
+            pct_stop = entry_price * (1 + risk_percent/100)
+            pct_stop_pct = risk_percent
+            
+            # Resistance-based stop loss (using recent highs)
+            recent_high = lstm_df['close'].tail(20).max()
+            support_stop = recent_high
+            support_stop_pct = (support_stop - entry_price) / entry_price * 100.0
+            
+            # Take profit suggestion based on risk:reward of 1:2
+            take_profit = entry_price * (1 - (risk_percent * 2)/100)
+            take_profit_pct = -risk_percent * 2
+        
+        # Create columns for displaying stop loss options
+        sl_col1, sl_col2, sl_col3 = st.columns(3)
+        
+        with sl_col1:
+            st.info(f"**{trade_type} Signal**")
+            st.metric("Entry Price", f"{entry_price:.5f}")
+            
+        with sl_col2:
+            sl_option = st.radio(
+                "Stop Loss Method",
+                ["ATR-Based", "Fixed Percentage", "Support/Resistance"],
+                index=0
+            )
+            
+        with sl_col3:
+            if sl_option == "ATR-Based":
+                st.metric("Stop Loss", f"{atr_stop:.5f}", f"{atr_stop_pct:.2f}%")
+                selected_stop = atr_stop
+            elif sl_option == "Fixed Percentage":
+                st.metric("Stop Loss", f"{pct_stop:.5f}", f"{pct_stop_pct:.2f}%")
+                selected_stop = pct_stop
+            else:
+                st.metric("Stop Loss", f"{support_stop:.5f}", f"{support_stop_pct:.2f}%")
+                selected_stop = support_stop
+            
+            st.metric("Take Profit (2R)", f"{take_profit:.5f}", f"{take_profit_pct:.2f}%")
+        
+        # Risk calculation
+        position_size_col1, position_size_col2 = st.columns(2)
+        
+        with position_size_col1:
+            account_size = st.number_input("Account Size (USD)", min_value=100.0, value=10000.0, step=100.0)
+            risk_amount = account_size * (risk_percent / 100)
+            st.metric("Risk Amount", f"${risk_amount:.2f}")
+        
+        with position_size_col2:
+            pip_value = 0.0001 if "USD" in "GBPUSD" else 0.01  # Adjust based on currency pair
+            price_diff = abs(entry_price - selected_stop)
+            pips_at_risk = price_diff / pip_value
+            
+        with position_size_col2:
+            pip_value = 0.0001 if "USD" in "GBPUSD" else 0.01  # Adjust based on currency pair
+            price_diff = abs(entry_price - selected_stop)
+            pips_at_risk = price_diff / pip_value
+            
+            # Position size calculation
+            if pips_at_risk > 0:
+                position_size = risk_amount / pips_at_risk
+                st.metric("Position Size", f"{position_size:.2f} units")
+                st.caption(f"Based on {pips_at_risk:.1f} pips at risk")
+            else:
+                st.warning("Cannot calculate position size: stop loss too close to entry")
+        
+        with st.expander("📚 About Stop Loss Methods"):
+            st.markdown("""
+            ### Stop Loss Methods Explained
+            
+            #### 1. ATR-Based Stop Loss
+            - Uses Average True Range to set dynamic stop loss based on market volatility
+            - Multiplier adjusts how many ATR units away your stop is placed
+            - Higher volatility = wider stop loss to avoid premature exits
+            
+            #### 2. Fixed Percentage Stop Loss
+            - Simple method that sets stop loss at a fixed percentage from entry
+            - Example: 1% risk means stop loss is 1% away from entry price
+            - Consistent approach regardless of market conditions
+            
+            #### 3. Support/Resistance Stop Loss
+            - Uses recent market structure (highs/lows) to place stop loss
+            - For buy trades: Stop goes below recent support
+            - For sell trades: Stop goes above recent resistance
+            - Often considered more "natural" in terms of market structure
+            
+            #### Position Sizing
+            - Position size is automatically calculated based on:
+              - Your account size
+              - Your risk percentage
+              - Distance to stop loss in pips
+            - This ensures consistent risk management across all trades
+            """)
 
         st.divider()
 
@@ -929,6 +1073,49 @@ class Model:
                       x0=hist.index[-1], x1=next_idx,
                       y0=min(lstm_pred, gru_pred), y1=max(lstm_pred, gru_pred),
                       fillcolor="LightSkyBlue", opacity=0.22, line_width=0)
+        
+        # Add stop loss and take profit lines
+        if sl_option == "ATR-Based":
+            stop_level = atr_stop
+        elif sl_option == "Fixed Percentage":
+            stop_level = pct_stop
+        else:
+            stop_level = support_stop
+        
+        fig.add_shape(type="line",
+                     x0=hist.index[-20], x1=next_idx,
+                     y0=stop_level, y1=stop_level,
+                     line=dict(color="Red", width=2, dash="dash"),
+                     name="Stop Loss")
+        
+        fig.add_shape(type="line",
+                     x0=hist.index[-20], x1=next_idx,
+                     y0=take_profit, y1=take_profit,
+                     line=dict(color="Green", width=2, dash="dash"),
+                     name="Take Profit")
+        
+        # Add annotations for stop loss and take profit
+        fig.add_annotation(
+            x=hist.index[-5],
+            y=stop_level,
+            text=f"Stop Loss: {stop_level:.5f}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-40 if trade_type == "BUY" else 40,
+            font=dict(color="Red")
+        )
+        
+        fig.add_annotation(
+            x=hist.index[-5],
+            y=take_profit,
+            text=f"Take Profit: {take_profit:.5f}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=40 if trade_type == "BUY" else -40,
+            font=dict(color="Green")
+        )
 
         fig.update_layout(
             title="Recent Price with Next-Candle Predictions",
@@ -943,11 +1130,14 @@ class Model:
 
         # --- Compact summary table ---
         summary_df = pd.DataFrame({
-            "Model": ["LSTM", "GRU", "Average"],
-            "Prediction": [lstm_pred, gru_pred, avg_pred],
+            "Model": ["LSTM", "GRU", "Average", "Entry", "Stop Loss", "Take Profit"],
+            "Prediction": [lstm_pred, gru_pred, avg_pred, entry_price, stop_level, take_profit],
             "Δ vs Last": [f"{lstm_pred - last_price:+.6f}", f"{gru_pred - last_price:+.6f}",
-                          f"{avg_pred - last_price:+.6f}"],
-            "Δ %": [f"{lstm_delta_pct:+.2f}%", f"{gru_delta_pct:+.2f}%", f"{avg_delta_pct:+.2f}%"]
+                          f"{avg_pred - last_price:+.6f}", "0.000000", 
+                          f"{stop_level - entry_price:+.6f}", f"{take_profit - entry_price:+.6f}"],
+            "Δ %": [f"{lstm_delta_pct:+.2f}%", f"{gru_delta_pct:+.2f}%", f"{avg_delta_pct:+.2f}%",
+                   "0.00%", f"{(stop_level-entry_price)/entry_price*100:+.2f}%", 
+                   f"{(take_profit-entry_price)/entry_price*100:+.2f}%"]
         })
         st.dataframe(summary_df, hide_index=True, use_container_width=True)
 
@@ -978,9 +1168,15 @@ class Model:
             "lstm_delta_pct": [lstm_delta_pct],
             "gru_delta_pct": [gru_delta_pct],
             "avg_delta_pct": [avg_delta_pct],
-            "agree": [agree]
+            "agree": [agree],
+            "trade_type": [trade_type],
+            "entry_price": [entry_price],
+            "stop_loss": [stop_level],
+            "take_profit": [take_profit],
+            "risk_percent": [risk_percent],
+            "position_size": [position_size if 'position_size' in locals() else 0]
         })
-        st.download_button("Download snapshot (CSV)", export_df.to_csv(index=False), "next_candle_snapshot.csv")
+        st.download_button("Download trading plan (CSV)", export_df.to_csv(index=False), "trading_plan.csv")
 
 
 
