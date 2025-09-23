@@ -16,117 +16,7 @@ from plotly.subplots import make_subplots
 import numpy as np
 backtesting.Pool = multiprocessing.Pool
 
-st.set_page_config(layout="wide")
-st.markdown(f"""
-<style>
-    /* --- General Styling --- */
-    .stApp {{
-        background: #F0F2F5; /* Soft, light grey background */
-        color: #333333; /* Dark grey for default text */
-    }}
 
-    @keyframes fadeIn {{
-        from {{ opacity: 0; transform: translateY(20px); }}
-        to {{ opacity: 1; transform: translateY(0); }}
-    }}
-
-    /* --- Containers and Cards --- */
-    .main-container, .info-container {{
-        background: #FFFFFF; /* Clean white background */
-        border-radius: 20px;
-        padding: 2rem;
-        margin-top: 2rem;
-        margin-bottom: 2rem;
-        border: 1px solid #E0E0E0; /* Subtle light grey border */
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* Soft shadow for depth */
-        animation: fadeIn 1s ease-in-out;
-    }}
-
-    .info-card {{
-        background: #FFFFFF;
-        border-radius: 15px;
-        padding: 1.5rem;
-        transition: all 0.3s ease;
-        border: 1px solid #EAEAEA; /* Slightly lighter border for cards */
-        height: 100%;
-    }}
-    .info-card:hover {{
-        transform: translateY(-5px);
-        background: #FAFAFA; /* Subtle hover background color */
-        border-color: #007BFF; /* Accent color border on hover */
-    }}
-
-    /* --- Typography --- */
-    h1, h2, h3, p, label {{
-        color: #212529 !important; /* Main text color - a dark, near-black */
-    }}
-    h2 {{
-        font-size: 2.5rem;
-        font-weight: bold;
-        text-align: center;
-        border-bottom: 3px solid #007BFF; /* Accent color underline */
-        padding-bottom: 10px;
-        margin-bottom: 2rem;
-    }}
-    h3 {{
-        font-size: 1.5rem;
-        font-weight: bold;
-        color: #007BFF !important; /* Accent color for subheadings */
-        margin-bottom: 1rem;
-    }}
-
-    /* --- Button Styling --- */
-    div[data-testid="stButton"] > button {{
-        border-radius: 10px;
-        border: 2px solid #007BFF;
-        background-color: transparent;
-        color: #007BFF;
-        transition: all 0.3s ease;
-        padding: 10px 25px;
-        font-weight: bold;
-        display: block;
-        margin-left: auto;
-        margin-right: auto;
-    }}
-    div[data-testid="stButton"] > button:hover {{
-        background-color: #007BFF;
-        color: #FFFFFF; /* White text on hover */
-        transform: scale(1.05);
-        box-shadow: 0 0 15px rgba(0, 123, 255, 0.5); /* Softer blue glow */
-    }}
-
-    /* Target the st.dialog container by its data-testid */
-    [data-testid="stDialog"] {{
-    /* Set the text color for all elements inside the dialog */
-    color: white;
-    }}
-    /* --- Other Widgets --- */
-    div[data-testid="stFileUploader"] {{
-        border: 2px dashed #00C49A;
-        background-color: rgba(0, 196, 154, 0.1);
-        padding: 1rem;
-        border-radius: 10px;
-    }}
-     /* Targeting the container of the selectbox */
-    div[data-testid="stSelectbox"] > div {{
-        border: 2px solid #4CAF50; /* Green border */
-        border-radius: 10px; /* Rounded corners */
-        background-color: #f0f2f6; /* Light grey background */
-    }}
-
-    /* Targeting the label of the selectbox */
-    div[data-testid="stSelectbox"] label {{
-        font-weight: bold;
-        color: #4CAF50; /* Green label text */
-    }}
-
-    /* You can be even more specific if needed */
-    /* This targets the selected option text */
-    div[data-testid="stSelectbox"] .st-emotion-cache-1f1dhpj {{
-        color: #007bff; /* Blue text for selected option */
-    }}
-    </style>
-""", unsafe_allow_html=True)
 
 @st.dialog("Overview")
 def show_features():
@@ -1777,7 +1667,7 @@ with st.container():
     st.markdown("<br>",unsafe_allow_html=True)
     c1,c2,c3,c4,c5=st.columns([1,1,1,1,1])
     with c3:
-        if st.button("🔍 Show Strategies",key="show_features"):
+        if st.button("🔍 Show Strategies",key="show_features",use_container_width=True):
             show_features()
     st.markdown("<div class='main-container'>",unsafe_allow_html=True)
 
@@ -2285,5 +2175,4 @@ with (st.container()):
                         " as 'Twin Peaks' for divergence and 'Saucer' patterns for trend continuation entries.</p>",
                         unsafe_allow_html=True)
             strat_20(st.session_state.df_uploaded)
-
 
