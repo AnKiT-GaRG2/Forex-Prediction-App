@@ -746,22 +746,204 @@ with st.container():
         st.dataframe(summary_df, hide_index=True, use_container_width=True)
 
         # --- Optional: Candlesticks if OHLC exists (kept inline, no functions) ---
-        ohlc_cols = {c.lower(): c for c in lstm_df.columns}
-        if all(k in ohlc_cols for k in ("open", "high", "low", "close")):
-            o, h, l, c = ohlc_cols["open"], ohlc_cols["high"], ohlc_cols["low"], ohlc_cols["close"]
-            ohlc = lstm_df[[o, h, l, c]].copy()
-            if not isinstance(ohlc.index, pd.DatetimeIndex):
-                ohlc.index = pd.date_range(end=pd.Timestamp.utcnow(), periods=len(ohlc), freq="H")
-            fig2 = go.Figure(data=[go.Candlestick(
-                x=ohlc.index, open=ohlc[o], high=ohlc[h], low=ohlc[l], close=ohlc[c], name="OHLC"
+    # --- Chart Type Toggle ---
+        chart_col1, chart_col2 = st.columns([1, 4])
+        with chart_col1:
+            use_candlestick = st.toggle("Switch to Candlestick Chart", value=False)
+
+        # --- Check available data for candlestick ---
+        # First, check if we have the original dataframe with OHLC data
+        has_ohlc_data = False
+        ohlc_data = None
+
+        # Check if the original dataframe has OHLC columns
+        if st.session_state.df is not None:
+            original_cols_lower = [col.lower() for col in st.session_state.df.columns]
+            if all(col in original_cols_lower for col in ['open', 'high', 'low', 'close']):
+                has_ohlc_data = True
+                # Get the last 100 records with OHLC data
+                ohlc_data = st.session_state.df[['open', 'high', 'low', 'close']].tail(100).copy()
+                # Ensure index is proper datetime
+                if not isinstance(ohlc_data.index, pd.DatetimeIndex):
+                    ohlc_data.index = pd.date_range(end=pd.Timestamp.now(), periods=len(ohlc_data), freq='4H')
+
+        # --- Chart Visualization with Toggle ---
+        if use_candlestick and has_ohlc_data:
+            # Candlestick Chart
+            fig_main = go.Figure(data=[go.Candlestick(
+                x=ohlc_data.index, 
+                open=ohlc_data['open'], 
+                high=ohlc_data['high'], 
+                low=ohlc_data['low'], 
+                close=ohlc_data['close'], 
+                name="GBP/USD 4H"
             )])
-            fig2.add_hline(y=lstm_pred, line_dash="dot", annotation_text="LSTM next", opacity=0.5)
-            fig2.add_hline(y=gru_pred, line_dash="dot", annotation_text="GRU next", opacity=0.5)
-            fig2.add_hline(y=avg_pred, line_dash="dash", annotation_text="AVG next", opacity=0.5)
-            fig2.update_layout(title="Candlestick (last 100) + Predicted Levels",
-                               height=460, margin=dict(l=30, r=20, t=50, b=40))
-            with st.expander("Candlestick view"):
-                st.plotly_chart(fig2, use_container_width=True)
+            
+            # Add prediction markers for next candle
+            if isinstance(ohlc_data.index, pd.DatetimeIndex) and len(ohlc_data.index) > 1:
+                step = ohlc_data.index[-1] - ohlc_data.index[-2]
+                next_idx = ohlc_data.index[-1] + step
+            else:
+                next_idx = ohlc_data.index[-1] + pd.Timedelta(hours=4)
+            
+            # Add prediction markers
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[lstm_pred], mode="markers+text",
+                                        marker=dict(size=12, color='orange', symbol='diamond'), 
+                                        name="LSTM Prediction", 
+                                        text=["LSTM"], textposition="top center"))
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[gru_pred], mode="markers+text",
+                                        marker=dict(size=12, color='purple', symbol='diamond'), 
+                                        name="GRU Prediction", 
+                                        text=["GRU"], textposition="bottom center"))
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[avg_pred], mode="markers+text",
+                                        marker=dict(size=12, color='blue', symbol='diamond'), 
+                                        name="Average Prediction", 
+                                        text=["AVG"], textposition="middle left"))
+            
+            chart_title = "GBP/USD 4H Candlestick with Predictions"
+            
+        else:
+            # Line Chart (using the close price from the available data)
+            if has_ohlc_data:
+                hist_data = ohlc_data['close']
+                hist_label = "Close Price"
+            else:
+                # Fallback to using whatever close data we have
+                hist_data = price_series.tail(100)
+                hist_label = "Price"
+            
+            if isinstance(hist_data.index, pd.DatetimeIndex):
+                if len(hist_data.index) > 1:
+                    step = hist_data.index[-1] - hist_data.index[-2]
+                else:
+                    step = pd.Timedelta(hours=4)
+                next_idx = hist_data.index[-1] + step
+            else:
+                next_idx = len(hist_data)
+
+            fig_main = go.Figure()
+            fig_main.add_trace(go.Scatter(x=hist_data.index, y=hist_data.values, 
+                                        mode="lines", name=hist_label, line=dict(width=2, color='green')))
+
+            # Add prediction markers
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[lstm_pred], mode="markers+text",
+                                        marker=dict(size=12, color='orange', symbol='diamond'), 
+                                        name="LSTM Prediction", 
+                                        text=["LSTM"], textposition="top center"))
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[gru_pred], mode="markers+text",
+                                        marker=dict(size=12, color='purple', symbol='diamond'), 
+                                        name="GRU Prediction", 
+                                        text=["GRU"], textposition="bottom center"))
+            fig_main.add_trace(go.Scatter(x=[next_idx], y=[avg_pred], mode="markers+text",
+                                        marker=dict(size=12, color='blue', symbol='diamond'), 
+                                        name="Average Prediction", 
+                                        text=["AVG"], textposition="middle left"))
+
+            # Add uncertainty band (only for line chart)
+            if not use_candlestick:
+                fig_main.add_shape(type="rect",
+                                x0=hist_data.index[-1], x1=next_idx,
+                                y0=min(lstm_pred, gru_pred), y1=max(lstm_pred, gru_pred),
+                                fillcolor="LightSkyBlue", opacity=0.15, line_width=0,
+                                name="Prediction Range")
+            
+            chart_title = "Price Chart with Predictions"
+            
+            if use_candlestick and not has_ohlc_data:
+                st.warning("⚠️ Candlestick data not available. Showing line chart instead.")
+
+        # Add trading levels to both chart types
+        current_index = ohlc_data.index if has_ohlc_data else hist_data.index
+
+        # Stop Loss line
+        fig_main.add_shape(type="line",
+                        x0=current_index[0], x1=next_idx,
+                        y0=stop_level, y1=stop_level,
+                        line=dict(color="Red", width=2, dash="dash"),
+                        name="Stop Loss")
+
+        # Take Profit line
+        fig_main.add_shape(type="line",
+                        x0=current_index[0], x1=next_idx,
+                        y0=take_profit, y1=take_profit,
+                        line=dict(color="Green", width=2, dash="dash"),
+                        name="Take Profit")
+
+        # Entry Price line
+        fig_main.add_shape(type="line",
+                        x0=current_index[0], x1=next_idx,
+                        y0=entry_price, y1=entry_price,
+                        line=dict(color="Yellow", width=2, dash="dot"),
+                        name="Entry Price")
+
+        # Add annotations
+        annotation_x = current_index[len(current_index)//2]  # Middle of the chart
+
+        # Stop Loss annotation
+        fig_main.add_annotation(
+            x=annotation_x,
+            y=stop_level,
+            text=f"Stop Loss: {stop_level:.5f}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-40 if trade_type == "BUY" else 40,
+            font=dict(color="Red", size=10),
+            bgcolor="white",
+            bordercolor="red"
+        )
+
+        # Take Profit annotation
+        fig_main.add_annotation(
+            x=annotation_x,
+            y=take_profit,
+            text=f"Take Profit: {take_profit:.5f}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=40 if trade_type == "BUY" else -40,
+            font=dict(color="Green", size=10),
+            bgcolor="white",
+            bordercolor="green"
+        )
+
+        # Entry Price annotation
+        fig_main.add_annotation(
+            x=annotation_x,
+            y=entry_price,
+            text=f"Entry: {entry_price:.5f}",
+            showarrow=True,
+            arrowhead=1,
+            ax=0,
+            ay=-60,
+            font=dict(color="Orange", size=10),
+            bgcolor="white",
+            bordercolor="orange"
+        )
+
+        # Update layout
+        fig_main.update_layout(
+            title=dict(text=chart_title, x=0.5, xanchor='center'),
+            xaxis_title="Time",
+            yaxis_title="Price (GBP/USD)",
+            hovermode="x unified",
+            height=500,
+            margin=dict(l=50, r=50, t=80, b=50),
+            legend=dict(
+                orientation="h",
+                yanchor="bottom",
+                y=1.02,
+                xanchor="center",
+                x=0.5
+            ),
+            plot_bgcolor='rgba(240,240,240,0.1)'
+        )
+
+        # Display the main chart
+        st.plotly_chart(fig_main, use_container_width=True)
+
+        # Chart info
+        st.caption(f"📊 Displaying: {'Candlestick Chart' if use_candlestick and has_ohlc_data else 'Line Chart'} | Trade Signal: {trade_type} | Last Price: {last_price:.5f}")
 
         # --- Export for logging/backtest ---
         export_df = pd.DataFrame({
