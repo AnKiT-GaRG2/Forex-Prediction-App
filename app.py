@@ -320,34 +320,26 @@ st.markdown(f"""
 .company-tagline-wrapper {{
     margin-top: -8px;
     padding-top: 0;
-    z-index: 9999;
+    text-align: center;
     position: relative;
 }}
 
 .company-tagline {{
-    background: var(--gradient-primary);
-    padding: 25px;
-    border-radius: 20px;
-    text-align: center;
+    padding: 10px 0;
     margin: 0 0 20px 0;
-    box-shadow: var(--shadow);
-    border: 1px solid var(--border-color);
-    backdrop-filter: blur(10px);
-    animation: fadeInUp 0.8s ease-out;
 }}
 
 .tagline-text {{
-    color: white;
-    font-size: 2.2rem;
+    color: #222;
+    font-size: 2rem;
     font-weight: 700;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
     margin: 0;
 }}
 
 .tagline-subtitle {{
-    color: rgba(255,255,255,0.9);
+    color: #555;
     font-size: 1.1rem;
-    margin-top: 8px;
+    margin-top: 6px;
     font-weight: 400;
 }}
 </style>
@@ -359,16 +351,77 @@ st.markdown(f"""
   </div>
 </div>
 """, unsafe_allow_html=True)
+st.markdown(f"""
+    <style>
+    /* ===== SIDEBAR NAVIGATION TEXT - STABLE SELECTORS ===== */
+    
+    /* Target navigation section titles (Info, Model) */
+    section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] h3,
+    section[data-testid="stSidebar"] div[data-testid="stMarkdownContainer"] h4 {{
+        color: var(--text-primary) !important;
+        font-weight: 600 !important;
+    }}
+    
+    /* Target all sidebar text elements */
+    section[data-testid="stSidebar"] * {{
+        color: var(--text-primary) !important;
+    }}
+    
+    /* Target navigation buttons and links */
+    section[data-testid="stSidebar"] button,
+    section[data-testid="stSidebar"] a,
+    section[data-testid="stSidebar"] div[role="button"] {{
+        color: var(--text-primary) !important;
+        font-weight: 500 !important;
+        transition: color 0.3s ease !important;
+    }}
+    
+    /* Highlight active/selected navigation items */
+    section[data-testid="stSidebar"] button[aria-pressed="true"],
+    section[data-testid="stSidebar"] button[data-selected="true"],
+    section[data-testid="stSidebar"] div[aria-selected="true"] {{
+        color: var(--primary-color) !important;
+        font-weight: 600 !important;
+        background-color: var(--primary-color)20 !important;
+        border-radius: 8px !important;
+    }}
+    
+    /* Target navigation page names specifically */
+    section[data-testid="stSidebar"] .st-emotion-cache-* {{
+        color: var(--text-primary) !important;
+    }}
+    
+    /* Fallback for all sidebar content */
+    section[data-testid="stSidebar"] [class*="st-emotion-cache"] {{
+        color: var(--text-primary) !important;
+    }}
+    
+    /* Settings section styling */
+    section[data-testid="stSidebar"] h3 {{
+        color: var(--primary-color) !important;
+        border-bottom: 2px solid var(--border-color) !important;
+        padding-bottom: 8px !important;
+    }}
+    
+    </style>
+    """, unsafe_allow_html=True)
+
 
 # Dark Mode Toggle in Sidebar
 with st.sidebar:
     st.markdown("### ⚙️ Settings")
     
-    # Dark Mode Toggle
-    dark_mode = st.toggle("🌙 Dark Mode", value=st.session_state.dark_mode, key="dark_mode_toggle")
-    if dark_mode != st.session_state.dark_mode:
-        st.session_state.dark_mode = dark_mode
-        st.rerun()
+    # Use callback to handle dark mode changes
+    def toggle_dark_mode():
+        st.session_state.dark_mode = st.session_state.dark_mode_toggle
+    
+    # Dark Mode Toggle with callback
+    st.toggle(
+        "🌙 Dark Mode", 
+        value=st.session_state.dark_mode, 
+        key="dark_mode_toggle",
+        on_change=toggle_dark_mode
+    )
     
     st.markdown("---")
     st.markdown("### 📊 Navigation")
@@ -391,14 +444,14 @@ Backtest_page = st.Page(
 # Future Price prediction
 Predication_page = st.Page(
     page="Pages/Prediction.py",
-    title="Prediction",
+    title=("Prediction"),
     icon="📈"
 )
 
 # Navigation
 pg = st.navigation({
     "Info": [Main_page],
-    "Models": [Backtest_page, Predication_page]
+    "Model": [Backtest_page, Predication_page]
 })
 
 # Logo and branding
